@@ -4,20 +4,26 @@ Documentation, License etc.
 @package PythonHostLib
 '''
 
-import configparser
+import ConfigParser
 import json
 import atexit
 import time
-import sched
+import threading
+from threading import Thread
 
-from . import VibratorManager
-from . import VibratorAdapter
+from VibratorManager import VibratorManager
+from VibratorAdapter import VibratorAdapter
+import GPIOController
 
-config = configparser.ConfigParser()
-vibratorManager = VibratorManager.VibratorManager()
+config = ConfigParser.ConfigParser()
+vibratorManager = VibratorManager()
 
 update_intervall = 1
 sequence_time = 120
+bEnd = False
+tThread = None
+
+lLock = threading.Lock()
 
 from flask import Flask
 app = Flask(__name__)
@@ -28,14 +34,17 @@ def hello():
 
 @app.route("/points/<int:value>/")
 def setPoints(value):
+    lLock.acquire()
     vibratorManager.set_points(value)
+    lLock.release()
     return "1"
 
 def start():
+    lLock.acquire()
     # Parse the configuration
     global config 
     config.read("playvibe_config.ini")
-    
+ 
     if not config.has_section("Vibrators"):
         print("No vibrators were found in configuration!")
         print("A default vibrator will be created on pin 18.")
@@ -53,39 +62,52 @@ def start():
     # Process available vibrators
     for vibe in vibrators:
         vibrator = VibratorAdapter(vibe)
-        vibratorManager.add_vibe(vibe)
+        vibratorManager.add_vibe(vibrator)
         
-    app.debug = True
+    lLock.release()
     app.run(host='0.0.0.0')
     
 currentTime = 0
-s = sched.scheduler(time.time, time.sleep)
     
-def periodicUpdate(sc):
+def periodicUpdate():
+    global lLock
+    lLock.acquire()
     global vibratorManager
     
     global currentTime
     
-    sc.enter(update_intervall, 1, periodicUpdate, (sc,))
-    
     vibratorManager.update_vibes(currentTime, sequence_time)
     currentTime += update_intervall
-    
-    print("Hello!")
-    
     if currentTime >= sequence_time:
         currentTime = 0
 
+    lLock.release()
+
+def periodicUpdateThread():
+    while bEnd == False:
+        periodicUpdate()
+        time.sleep(update_intervall)
+
+    print("Update worker has ended!")
+
 def end():
     global config
+    global bEnd
+    global tThread
+    bEnd = True
     print("Ending the program, write the configuration to a file")
     with open('playvibe_config.ini', 'w') as config_file:
         config.write(config_file)
 
+    tThread.terminate()
+    GPIOController.destroy()
+
+
 if __name__ == "__main__":
     print("STARTING UP")
-    s.enter(update_intervall, 1, periodicUpdate, (s,))
-    s.run(blocking=False)
-    start()
+    GPIOController.init()
     atexit.register(end)
+    tThread = Thread(target=periodicUpdateThread)
+    tThread.start()
+    start()
     

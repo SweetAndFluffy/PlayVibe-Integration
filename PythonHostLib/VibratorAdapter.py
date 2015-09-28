@@ -15,6 +15,7 @@ class VibratorAdapter:
         
     def __init__(self, vibe):
         self.name = vibe['name']
+        self.gpioPin = vibe['pin']
         for mode in vibe['modes']:
             if mode['mode'] is 'ContinuousVibrations':
                 conVibes = ContinuousVibrations()
