@@ -34,14 +34,24 @@ def hello():
 
 @app.route("/points/<int:value>/")
 def setPoints(value):
+    global lLock
     lLock.acquire()
     vibratorManager.set_points(value)
     lLock.release()
     return "1"
 
-def start():
+@app.route("/config/", methods=['GET']):
+def getConfig():
     lLock.acquire()
-    # Parse the configuration
+    global config
+    with open('playvibe_config.ini', 'w') as config_file:
+        config.write(config_file)
+        data = config_file.read()
+        return data
+    return "No config file found!"
+
+def readConfigFromFile():
+    lLock.acquire()
     global config 
     config.read("playvibe_config.ini")
  
@@ -63,15 +73,28 @@ def start():
     for vibe in vibrators:
         vibrator = VibratorAdapter(vibe)
         vibratorManager.add_vibe(vibrator)
-        
     lLock.release()
+
+def setConfig(configContent):
+    with open('playvibe_config.ini', 'w') as config_file:
+        config.write(config_file)
+    readConfigFromFile()
+
+@app.route("/config/", methods=['POST']):
+def setConfigOverHTTP():
+    configData = request.form['json']
+    setConfig(str(configData))
+
+def start():
+    lLock.acquire()
+    # Parse the configuration
+    readConfigFromFile()
+        
     app.run(host='0.0.0.0')
     
 currentTime = 0
     
 def periodicUpdate():
-    global lLock
-    lLock.acquire()
     global vibratorManager
     
     global currentTime
