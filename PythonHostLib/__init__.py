@@ -52,11 +52,8 @@ def getPoints():
 def getConfig():
     lLock.acquire()
     global config
-    with open('playvibe_config.ini', 'w') as config_file:
-        config.write(config_file)
-        data = config_file.read()
-        return data
-    return "No config file found!"
+    data = config.get("Vibrators", "data")
+    return data
 
 def readConfigFromFile():
     lLock.acquire()
@@ -76,6 +73,8 @@ def readConfigFromFile():
     vibrators = json.loads(vibrators)
     
     global vibratorManager
+
+    vibratorManager.clear()
     
     # Process available vibrators
     for vibe in vibrators:
@@ -84,6 +83,8 @@ def readConfigFromFile():
     lLock.release()
 
 def setConfig(configContent):
+    global config
+    config.set("Vibrators", "data", value=configContent)
     with open('playvibe_config.ini', 'w') as config_file:
         config.write(config_file)
     readConfigFromFile()
