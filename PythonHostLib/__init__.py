@@ -40,6 +40,14 @@ def setPoints(value):
     lLock.release()
     return "1"
 
+@app.route("/points/")
+def getPoints():
+    global lLock
+    lLock.acquire()
+    points = vibratorManager.get_points()
+    lLock.release()
+    return str(points)
+
 @app.route("/config/", methods=['GET']):
 def getConfig():
     lLock.acquire()
