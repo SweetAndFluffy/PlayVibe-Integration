@@ -9,6 +9,9 @@ import json
 import atexit
 import time
 import threading
+import signal
+import sys
+import os
 from threading import Thread
 
 from VibratorManager import VibratorManager
@@ -26,11 +29,12 @@ tThread = None
 lLock = threading.Lock()
 
 from flask import Flask
-app = Flask(__name__)
+from flask import send_from_directory
+app = Flask(__name__, static_url_path='/')
+app._static_folder = os.path.dirname(os.path.realpath(__file__))
 
-@app.route("/")
-def hello():
-    return "Vibrator Control Program"
+app.debug = False
+
 
 @app.route("/points/<int:value>/")
 def setPoints(value):
@@ -48,15 +52,23 @@ def getPoints():
     lLock.release()
     return str(points)
 
-@app.route("/config/", methods=['GET']):
+@app.route("/config/", methods=['GET'])
 def getConfig():
     lLock.acquire()
     global config
     data = config.get("Vibrators", "data")
     return data
 
+@app.route("/")
+def getRoot():
+    return app.send_static_file('frontend/index.html');
+
+@app.route("/<path:path>")
+def getFile(path):
+    root_dir = os.path.dirname(os.getcwd())
+    return send_from_directory('frontend', path)
+
 def readConfigFromFile():
-    lLock.acquire()
     global config 
     config.read("playvibe_config.ini")
  
@@ -80,7 +92,6 @@ def readConfigFromFile():
     for vibe in vibrators:
         vibrator = VibratorAdapter(vibe)
         vibratorManager.add_vibe(vibrator)
-    lLock.release()
 
 def setConfig(configContent):
     global config
@@ -89,17 +100,25 @@ def setConfig(configContent):
         config.write(config_file)
     readConfigFromFile()
 
-@app.route("/config/", methods=['POST']):
+@app.route("/config/", methods=['POST'])
 def setConfigOverHTTP():
     configData = request.form['json']
     setConfig(str(configData))
 
 def start():
+    print("Starting main logic.")
     lLock.acquire()
     # Parse the configuration
+    print("Read config.")
     readConfigFromFile()
+
+    lLock.release()
         
-    app.run(host='0.0.0.0')
+    try:
+        print("Start the flask server")
+        app.run(host='0.0.0.0')
+    finally:
+        end()
     
 currentTime = 0
     
@@ -108,6 +127,8 @@ def periodicUpdate():
     
     global currentTime
     
+    lLock.acquire()
+
     vibratorManager.update_vibes(currentTime, sequence_time)
     currentTime += update_intervall
     if currentTime >= sequence_time:
@@ -116,6 +137,7 @@ def periodicUpdate():
     lLock.release()
 
 def periodicUpdateThread():
+    print("Update worker has started!")
     while bEnd == False:
         periodicUpdate()
         time.sleep(update_intervall)
@@ -131,14 +153,10 @@ def end():
     with open('playvibe_config.ini', 'w') as config_file:
         config.write(config_file)
 
-    tThread.terminate()
     GPIOController.destroy()
 
-
 if __name__ == "__main__":
-    print("STARTING UP")
     GPIOController.init()
-    atexit.register(end)
     tThread = Thread(target=periodicUpdateThread)
     tThread.start()
     start()

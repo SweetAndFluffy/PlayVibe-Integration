@@ -1,10 +1,20 @@
-import RPi.GPIO as GPIO
+import imp
+
+gpio_found = False
+
+try: 
+    imp.find_module('RPi.GPIO')
+    gpio_found = True
+    import RPi.GPIO as GPIO
+except ImportError:
+    gpio_found = False
 
 def pin_not_usable(pin, value):
     print("The pin number " + str(pin) + " cannot be used!")
 
 def set_pwm_pin(pin, value):
-    pwms[pin].ChangeDutyCycle(value)
+    if gpio_found:
+        pwms[pin].ChangeDutyCycle(value)
 
 pwms = {
         18: None
@@ -58,19 +68,23 @@ def set_pin(pin, value):
         pin_not_usable(pin, value)
 
 def init():
-    GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)
+    if gpio_found:
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
     
-    for pin, pwm in pwms.iteritems():
-        GPIO.setup(pin, GPIO.OUT)
-        pwm = GPIO.PWM(pin, 50)
-        pwm.start(0)
-        pwms[pin] = pwm
+        for pin, pwm in pwms.iteritems():
+            GPIO.setup(pin, GPIO.OUT)
+            pwm = GPIO.PWM(pin, 50)
+            pwm.start(0)
+            pwms[pin] = pwm
+    else:
+        print("GPIO not found, doing dummy-run.")
     
 def destroy():
-    global pwms
-    
-    for pwm in pwms:
-        pwm.stop()
-    
-    GPIO.cleanup()
+    if gpio_found:
+        global pwms
+        
+        for pwm in pwms:
+            pwm.stop()
+        
+        GPIO.cleanup()

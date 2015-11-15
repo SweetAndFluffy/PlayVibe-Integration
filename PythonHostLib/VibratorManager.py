@@ -15,5 +15,5 @@ class VibratorManager:
         self.points = value
     def get_points(self):
         return self.points
-    def clear():
+    def clear(self):
         self.vibes = list()
