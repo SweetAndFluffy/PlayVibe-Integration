@@ -1,0 +1,3 @@
+[submodule "PythonHostLib/frontend"]
+	path = PythonHostLib/frontend
+	url = https://github.com/DaniGuardiola/PlayVibe-Integration-frontend.git
